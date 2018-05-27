@@ -6,9 +6,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/containerd/containerd"
-	"github.com/containerd/typeurl"
-	// Register grpc event types
 	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/typeurl"
+	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
 type Watcher struct {
@@ -37,30 +37,59 @@ func (w *Watcher) Watch() {
 		case c := <-ch:
 			v, err := typeurl.UnmarshalAny(c.Event)
 			if err != nil {
-				log.Error("Unmarshal error: ", err)
-			} else {
-				log.Printf("%s #%s#\n\t%s\n", c.Namespace, c.Topic, v)
-				if c.Namespace == "moby" {
-					switch c.Topic {
-					case "/tasks/start":
-						log.Info(v)
-						start, ok := v.(*events.TaskStart)
-						if ok {
-							cont, err := w.client.ContainerService().Get(ctx, start.ContainerID)
-							if err != nil {
-								log.Error("getContainer: ", err)
-							} else {
-								log.Info("start", cont)
-							}
-						} else {
-							log.Error("Can't cast ", start)
-						}
-					default:
-						log.Info("Unknown topic: ", c.Topic)
-					}
-				} else {
-					log.Info("Strange namespace: %s", c.Namespace)
+				log.Error("Unmarshal event error: ", err)
+				break
+			}
+			log.Printf("%s #%s#\n\t%s\n", c.Namespace, c.Topic, v)
+			if c.Namespace != "moby" {
+				log.Info("Strange namespace: %s", c.Namespace)
+				break
+			}
+			switch c.Topic {
+			case "/tasks/start":
+				start, ok := v.(*events.TaskStart)
+				if !ok {
+					log.Error("Can't cast ", start)
+					break
 				}
+				cont, err := w.client.LoadContainer(ctx, start.ContainerID)
+
+				if err != nil {
+					log.Error("getContainer: ", start.ContainerID, " ", err)
+					break
+				}
+				info, err := cont.Info(ctx)
+				if err != nil {
+					log.Error("Info error: ", start.ContainerID, " ", err)
+					break
+				}
+				log.Info("Info: ", info)
+				s, err := typeurl.UnmarshalAny(info.Spec)
+				if err != nil {
+					log.Error("Can't unmarshal info spec :", start.ContainerID, " ", err)
+					break
+				}
+				spec, ok := s.(*specs.Spec)
+				if !ok {
+					log.Error("Can't cast ", s)
+					break
+				}
+				log.Info("start spec: ", spec)
+
+				labels, err := cont.Labels(ctx)
+				if err != nil {
+					log.Error("Labels error: ", err)
+					break
+				}
+				log.Info("Labels: ", labels)
+
+				/*
+					log.Info("start spec type: ", info.Spec.GetTypeUrl())
+					log.Info("start spec value: ", string(info.Spec.GetValue()))
+					log.Info("start annotations: ", spec.Annotations)
+				*/
+			default:
+				log.Info("Unknown topic ", c.Topic)
 			}
 		case e := <-errs:
 			log.Info(e)
