@@ -11,6 +11,7 @@
   name = "github.com/containerd/containerd"
   packages = [
     ".",
+    "api/events",
     "api/services/containers/v1",
     "api/services/content/v1",
     "api/services/diff/v1",
@@ -245,6 +246,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4468c0598dfa1920b77f65657c0ec7ecbfd1914176b6b388ac5b61c2e23be9d1"
+  inputs-digest = "d205fc5ec47e422bf5408b8f5fe0d732037ba7b18d9247d8f05d19c91f3e2038"
   solver-name = "gps-cdcl"
   solver-version = 1
