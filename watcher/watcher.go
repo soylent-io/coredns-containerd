@@ -8,7 +8,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/typeurl"
 	// Register grpc event types
-	_ "github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/api/events"
 )
 
 type Watcher struct {
@@ -16,7 +16,7 @@ type Watcher struct {
 }
 
 func New(socket string) (*Watcher, error) {
-	client, err := containerd.New(socket)
+	client, err := containerd.New(socket, containerd.WithDefaultNamespace("moby"))
 	if err != nil {
 		return nil, err
 	}
@@ -37,11 +37,30 @@ func (w *Watcher) Watch() {
 		case c := <-ch:
 			v, err := typeurl.UnmarshalAny(c.Event)
 			if err != nil {
-				log.Error(err)
+				log.Error("Unmarshal error: ", err)
 			} else {
-				log.Printf("%s %s\n\t%s\n", c.Namespace, c.Topic, v)
-				//log.Printf("Topic: %s Namespace: %s\n\tTypeUrl: %s\n\tValue: %s", c.Topic, c.Namespace, c.Event.GetTypeUrl(), string(c.Event.GetValue()))
-
+				log.Printf("%s #%s#\n\t%s\n", c.Namespace, c.Topic, v)
+				if c.Namespace == "moby" {
+					switch c.Topic {
+					case "/tasks/start":
+						log.Info(v)
+						start, ok := v.(*events.TaskStart)
+						if ok {
+							cont, err := w.client.ContainerService().Get(ctx, start.ContainerID)
+							if err != nil {
+								log.Error("getContainer: ", err)
+							} else {
+								log.Info("start", cont)
+							}
+						} else {
+							log.Error("Can't cast ", start)
+						}
+					default:
+						log.Info("Unknown topic: ", c.Topic)
+					}
+				} else {
+					log.Info("Strange namespace: %s", c.Namespace)
+				}
 			}
 		case e := <-errs:
 			log.Info(e)
