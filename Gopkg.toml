@@ -1,0 +1,7 @@
+[[ constraint ]]
+  name = "github.com/containerd/containerd"
+  revision = "773c489c9c1b21a6d78b5c538cd395416ec50f88"
+
+[prune]
+  go-tests = true
+  unused-packages = true
