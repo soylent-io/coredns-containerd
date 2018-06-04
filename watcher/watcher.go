@@ -11,10 +11,13 @@ import (
 	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
+// Watcher watch the watchmen
+// Watch Containerd for Docker events
 type Watcher struct {
 	client *containerd.Client
 }
 
+// New Watcher
 func New(socket string) (*Watcher, error) {
 	client, err := containerd.New(socket, containerd.WithDefaultNamespace("moby"))
 	if err != nil {
@@ -25,10 +28,12 @@ func New(socket string) (*Watcher, error) {
 	}, nil
 }
 
+// Version of containerd
 func (w *Watcher) Version() (containerd.Version, error) {
 	return w.client.Version(context.Background())
 }
 
+// Watch events
 func (w *Watcher) Watch() {
 	ctx := context.Background()
 	ch, errs := w.client.Subscribe(ctx, "namespace==moby")
