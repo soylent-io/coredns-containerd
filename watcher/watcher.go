@@ -80,6 +80,7 @@ func (w *Watcher) Watch() {
 					break
 				}
 				log.Info("start spec: ", spec)
+				log.Info("start spec annotation: ", spec.Annotations)
 
 				labels, err := cont.Labels(ctx)
 				if err != nil {
