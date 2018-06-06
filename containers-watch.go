@@ -1,12 +1,18 @@
 package main
 
 import (
+	"os"
+
 	log "github.com/sirupsen/logrus"
 	"gitlab.bearstech.com/factory/containers-watch/watcher"
 )
 
 func main() {
-	w, err := watcher.New("/var/run/docker/containerd/docker-containerd.sock")
+	socket := os.Getenv("CONTAINERD_SOCKET")
+	if socket == "" {
+		socket = "/var/run/docker/containerd/docker-containerd.sock"
+	}
+	w, err := watcher.New(socket)
 	if err != nil {
 		panic(err)
 	}
