@@ -69,6 +69,7 @@ func (w *Watcher) Version() (containerd.Version, error) {
 	return w.client.Version(context.Background())
 }
 
+// HandleStart handles start
 func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, *events.TaskStart)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
@@ -81,6 +82,7 @@ func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, 
 	return nil
 }
 
+// HandleExit handles exit
 func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *events.TaskExit)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
@@ -93,6 +95,7 @@ func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *
 	return nil
 }
 
+// HandleDelete handles delete
 func (w *Watcher) HandleDelete(filter string, handler func(*types.ContainerJSON, *events.TaskDelete)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
