@@ -10,21 +10,31 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	eventsapi "github.com/containerd/containerd/api/services/events/v1"
+	"github.com/containerd/containerd/filters"
+	"github.com/containerd/containerd/runtime"
 	"github.com/containerd/typeurl"
 	"github.com/docker/docker/client"
 	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
-// Containers events
-const (
-	TaskStart = "/task/start" // Container start
-)
-
 // Watcher watch the watchmen
 // Watch Containerd for Docker events
 type Watcher struct {
-	client *containerd.Client
-	docker *client.Client
+	client        *containerd.Client
+	docker        *client.Client
+	startHandlers []*startHandler
+	exitHandlers  []*exitHandler
+}
+
+type startHandler struct {
+	filter  filters.Filter
+	handler func(*types.ContainerJSON, *events.TaskStart)
+}
+
+type exitHandler struct {
+	filter  *filters.Filter
+	handler func(*types.ContainerJSON, *events.TaskExit)
 }
 
 // New Watcher
@@ -53,44 +63,78 @@ func (w *Watcher) Version() (containerd.Version, error) {
 	return w.client.Version(context.Background())
 }
 
-// Subscribe for containers events
-func (w *Watcher) Subscribe(ctx context.Context, topic string, filters ...string) (chan *types.Container, chan error) {
-	cc := make(chan *types.Container, 1)
-	ce := make(chan error, 1)
+func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, *events.TaskStart)) error {
+	f, err := filters.Parse(filter)
+	if err != nil {
+		return err
+	}
+	w.startHandlers = append(w.startHandlers, &startHandler{
+		filter:  f,
+		handler: handler,
+	})
+	return nil
+}
+
+func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *events.TaskExit)) error {
+	f, err := filters.Parse(filter)
+	if err != nil {
+		return err
+	}
+	w.exitHandlers = append(w.exitHandlers, &exitHandler{
+		filter:  &f,
+		handler: handler,
+	})
+	return nil
+}
+
+func (w *Watcher) Listen() {
+	ctx := context.Background()
 	ch, errs := w.client.Subscribe(ctx, "namespace==moby")
-	go func() {
-		for {
-			select {
-			case e := <-errs:
-				ce <- e
-			case c := <-ch:
-				if c.Topic != topic {
-					break
-				}
+	for {
+		select {
+		case err := <-errs:
+			log.Error(err)
+		case c := <-ch:
+			go func(c *eventsapi.Envelope) {
 				v, err := typeurl.UnmarshalAny(c.Event)
 				if err != nil {
-					ce <- err
-					break
+					log.Error(err)
+					return
 				}
 				switch c.Topic {
-				case TaskStart:
+				case runtime.TaskStartEventTopic:
 					start, ok := v.(*events.TaskStart)
 					if !ok {
-						ce <- fmt.Errorf("Can't cast to TaskStart : %s", start)
-						break
+						log.Error(fmt.Errorf("Can't cast to TaskStart : %s", start))
+						return
 					}
 					cont, err := w.docker.ContainerInspect(ctx, start.ContainerID)
 					if err != nil {
-						ce <- err
-						break
+						log.Error(err)
+						return
 					}
-					log.Info(cont)
+					ca := NewContainerAdaptor(&cont)
+					for _, h := range w.startHandlers {
+						if h.filter.Match(ca) {
+							go h.handler(&cont, start)
+						}
+					}
+				case runtime.TaskExitEventTopic:
+					exit, ok := v.(*events.TaskExit)
+					if !ok {
+						log.Error(fmt.Errorf("Can't cast to TaskExit : %s", exit))
+						return
+					}
+					// FIXME guess who was the old container, before it exits
+					for _, h := range w.exitHandlers {
+						// FIXME use the filter
+						go h.handler(nil, exit)
+					}
 				}
 
-			}
+			}(c)
 		}
-	}()
-	return cc, ce
+	}
 }
 
 // Watch events

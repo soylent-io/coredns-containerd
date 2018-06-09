@@ -12,7 +12,7 @@ func main() {
 	if socket == "" {
 		socket = "/var/run/docker/containerd/docker-containerd.sock"
 	}
-	w, err := watcher.New(socket)
+	w, err := watcher.New(socket, "")
 	if err != nil {
 		panic(err)
 	}
