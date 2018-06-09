@@ -51,6 +51,7 @@
     "remotes/docker",
     "remotes/docker/schema1",
     "rootfs",
+    "runtime",
     "snapshots",
     "sys"
   ]
@@ -76,6 +77,12 @@
   name = "github.com/containerd/typeurl"
   packages = ["."]
   revision = "f6943554a7e7e88b3c14aad190bf05932da84788"
+
+[[projects]]
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/docker/distribution"
@@ -191,16 +198,28 @@
   version = "v0.8.0"
 
 [[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
   version = "v1.0.5"
 
 [[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
+  version = "v1.2.1"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
-  revision = "ab813273cd59e1333f7ae7bff5d027d4aadf528c"
+  revision = "8ac0e0d97ce45cd83d1d7243c060cb8461dda5e9"
 
 [[projects]]
   branch = "master"
@@ -217,7 +236,7 @@
     "proxy",
     "trace"
   ]
-  revision = "dfa909b99c79129e1100513e5cd36307665e5723"
+  revision = "1e491301e022f8f977054da4c2d852decd59571f"
 
 [[projects]]
   branch = "master"
@@ -232,7 +251,7 @@
     "unix",
     "windows"
   ]
-  revision = "c11f84a56e43e20a78cee75a7c034031ecf57d1f"
+  revision = "9527bec2660bd847c050fda93a0f0c6dee0800bb"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -259,7 +278,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "694d95ba50e67b2e363f3483057db5d4910c18f9"
+  revision = "32ee49c4dd805befd833990acba36cb75042378c"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -290,12 +309,12 @@
     "tap",
     "transport"
   ]
-  revision = "41344da2231b913fa3d983840a57a6b1b7b631a1"
-  version = "v1.12.0"
+  revision = "7a6a684ca69eb4cae85ad0a484f2e531598c047b"
+  version = "v1.12.2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bf50ffaa0231dd4584fd19d94358a89c227c27ad358264668042a44d21d800e3"
+  inputs-digest = "b1b71852a27524c8f763e5468ef50e525ad947e2633c6aba11bfe080adda6158"
   solver-name = "gps-cdcl"
   solver-version = 1
