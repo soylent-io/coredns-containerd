@@ -3,6 +3,9 @@ bin: vendor
 
 vendor:
 	dep ensure -v
+
+test:
+	go test gitlab.bearstech.com/factory/containers-watch/watcher
 	
 docker: vendor
 	docker run -ti --rm \
