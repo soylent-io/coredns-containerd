@@ -28,6 +28,8 @@ func (ca *ContainerAdaptor) Field(fieldpath []string) (value string, present boo
 			return "", false
 		}
 		switch fieldpath[1] {
+		case "id":
+			return ca.container.ID, true
 		case "config":
 			if len(fieldpath) == 2 {
 				return "", false
