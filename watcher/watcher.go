@@ -112,6 +112,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 	for {
 		select {
 		case <-ctxw.Done():
+			// Exit the loop
 			return
 		case err := <-errs:
 			log.Error(err)
