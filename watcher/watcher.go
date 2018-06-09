@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/docker/docker/api/types"
 	log "github.com/sirupsen/logrus"
@@ -44,6 +45,13 @@ type deleteHandler struct {
 
 // New Watcher
 func New(socketContainerd, socketDocker string) (*Watcher, error) {
+	if socketContainerd == "" {
+		socketContainerd = os.Getenv("CONTAINERD_SOCKET")
+		if socketContainerd == "" {
+			// Default Debian value
+			socketContainerd = "/var/run/docker/containerd/docker-containerd.sock"
+		}
+	}
 	cli, err := containerd.New(socketContainerd, containerd.WithDefaultNamespace("moby"))
 	if err != nil {
 		return nil, err

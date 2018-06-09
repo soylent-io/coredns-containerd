@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"os"
 
 	"github.com/containerd/containerd/api/events"
 	"github.com/docker/docker/api/types"
@@ -11,11 +10,7 @@ import (
 )
 
 func main() {
-	socket := os.Getenv("CONTAINERD_SOCKET")
-	if socket == "" {
-		socket = "/var/run/docker/containerd/docker-containerd.sock"
-	}
-	w, err := watcher.New(socket, "")
+	w, err := watcher.New("", "")
 	if err != nil {
 		panic(err)
 	}
