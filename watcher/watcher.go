@@ -21,10 +21,11 @@ import (
 // Watcher watch the watchmen
 // Watch Containerd for Docker events
 type Watcher struct {
-	client        *containerd.Client
-	docker        *client.Client
-	startHandlers []*startHandler
-	exitHandlers  []*exitHandler
+	client         *containerd.Client
+	docker         *client.Client
+	startHandlers  []*startHandler
+	exitHandlers   []*exitHandler
+	deleteHandlers []*deleteHandler
 }
 
 type startHandler struct {
@@ -33,8 +34,13 @@ type startHandler struct {
 }
 
 type exitHandler struct {
-	filter  *filters.Filter
+	filter  filters.Filter
 	handler func(*types.ContainerJSON, *events.TaskExit)
+}
+
+type deleteHandler struct {
+	filter  filters.Filter
+	handler func(*types.ContainerJSON, *events.TaskDelete)
 }
 
 // New Watcher
@@ -81,17 +87,32 @@ func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *
 		return err
 	}
 	w.exitHandlers = append(w.exitHandlers, &exitHandler{
-		filter:  &f,
+		filter:  f,
 		handler: handler,
 	})
 	return nil
 }
 
-func (w *Watcher) Listen() {
+func (w *Watcher) HandleDelete(filter string, handler func(*types.ContainerJSON, *events.TaskDelete)) error {
+	f, err := filters.Parse(filter)
+	if err != nil {
+		return err
+	}
+	w.deleteHandlers = append(w.deleteHandlers, &deleteHandler{
+		filter:  f,
+		handler: handler,
+	})
+	return nil
+}
+
+// Listen events
+func (w *Watcher) Listen(ctxw context.Context) {
 	ctx := context.Background()
 	ch, errs := w.client.Subscribe(ctx, "namespace==moby")
 	for {
 		select {
+		case <-ctxw.Done():
+			return
 		case err := <-errs:
 			log.Error(err)
 		case c := <-ch:
@@ -101,6 +122,7 @@ func (w *Watcher) Listen() {
 					log.Error(err)
 					return
 				}
+				ctx := context.Background()
 				switch c.Topic {
 				case runtime.TaskStartEventTopic:
 					start, ok := v.(*events.TaskStart)
@@ -125,13 +147,35 @@ func (w *Watcher) Listen() {
 						log.Error(fmt.Errorf("Can't cast to TaskExit : %s", exit))
 						return
 					}
-					// FIXME guess who was the old container, before it exits
+					cont, err := w.docker.ContainerInspect(ctx, exit.ContainerID)
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					ca := NewContainerAdaptor(&cont)
 					for _, h := range w.exitHandlers {
-						// FIXME use the filter
-						go h.handler(nil, exit)
+						if h.filter.Match(ca) {
+							go h.handler(&cont, exit)
+						}
+					}
+				case runtime.TaskDeleteEventTopic:
+					delete, ok := v.(*events.TaskDelete)
+					if !ok {
+						log.Error(fmt.Errorf("Can't cast to TaskDelete: %s", delete))
+						return
+					}
+					cont, err := w.docker.ContainerInspect(ctx, delete.ContainerID)
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					ca := NewContainerAdaptor(&cont)
+					for _, h := range w.deleteHandlers {
+						if h.filter.Match(ca) {
+							go h.handler(&cont, delete)
+						}
 					}
 				}
-
 			}(c)
 		}
 	}
