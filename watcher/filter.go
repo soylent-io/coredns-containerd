@@ -1,6 +1,8 @@
 package watcher
 
 import (
+	"strings"
+
 	"github.com/docker/docker/api/types"
 )
 
@@ -25,12 +27,40 @@ func (ca *ContainerAdaptor) Field(fieldpath []string) (value string, present boo
 		if len(fieldpath) == 1 {
 			return "", false
 		}
-		if fieldpath[1] == "label" {
+		switch fieldpath[1] {
+		case "config":
 			if len(fieldpath) == 2 {
 				return "", false
 			}
-			v, ok := ca.container.Config.Labels[fieldpath[2]]
-			return v, ok
+			switch fieldpath[2] {
+			case "hostname":
+				return ca.container.Config.Hostname, true
+			case "domainname":
+				return ca.container.Config.Domainname, true
+			case "user":
+				return ca.container.Config.User, true
+			case "image":
+				return ca.container.Config.Image, true
+			case "env":
+				if len(fieldpath) == 3 {
+					return "", false
+				}
+				for _, e := range ca.container.Config.Env {
+					kv := strings.Split(e, "=")
+					if kv[0] == fieldpath[3] {
+						return strings.Join(kv[1:], "="), true
+					}
+				}
+				return "", false
+			case "labels":
+				if len(fieldpath) == 3 {
+					return "", false
+				}
+				v, ok := ca.container.Config.Labels[fieldpath[3]]
+				return v, ok
+			default:
+				return "", false
+			}
 		}
 	}
 	return "", false
