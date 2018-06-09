@@ -27,4 +27,8 @@ func TestFilter(t *testing.T) {
 	assert.NoError(t, err)
 	ok = p.Match(ca)
 	assert.False(t, ok)
+	p, err = filters.Parse(`docker.label.beuha~=".*"`)
+	assert.NoError(t, err)
+	ok = p.Match(ca)
+	assert.True(t, ok)
 }
