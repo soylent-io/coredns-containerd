@@ -25,12 +25,18 @@ func NewState(socketContainerd, socketDocker string) (*State, error) {
 		watcher:    w,
 		containers: make(map[string]*types.ContainerJSON),
 	}
-	s.watcher.HandleStart("", func(cont *types.ContainerJSON, event *events.TaskStart) {
+	err = s.watcher.HandleStart("", func(cont *types.ContainerJSON, event *events.TaskStart) {
 		s.containers[cont.ID] = cont
 	})
-	s.watcher.HandleExit("", func(cont *types.ContainerJSON, event *events.TaskExit) {
+	if err != nil {
+		return nil, err
+	}
+	err = s.watcher.HandleExit("", func(cont *types.ContainerJSON, event *events.TaskExit) {
 		delete(s.containers, cont.ID)
 	})
+	if err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
