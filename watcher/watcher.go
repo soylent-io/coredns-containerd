@@ -21,8 +21,8 @@ import (
 // Watcher watch the watchmen
 // Watch Containerd for Docker events
 type Watcher struct {
-	client         *containerd.Client
-	docker         *client.Client
+	Container      *containerd.Client
+	Docker         *client.Client
 	startHandlers  []*startHandler
 	exitHandlers   []*exitHandler
 	deleteHandlers []*deleteHandler
@@ -66,14 +66,14 @@ func New(socketContainerd, socketDocker string) (*Watcher, error) {
 		return nil, err
 	}
 	return &Watcher{
-		client: cli,
-		docker: clientDocker,
+		Container: cli,
+		Docker:    clientDocker,
 	}, nil
 }
 
 // Version of containerd
 func (w *Watcher) Version() (containerd.Version, error) {
-	return w.client.Version(context.Background())
+	return w.Container.Version(context.Background())
 }
 
 // HandleStart handles start
@@ -118,7 +118,7 @@ func (w *Watcher) HandleDelete(filter string, handler func(*types.ContainerJSON,
 // Listen events
 func (w *Watcher) Listen(ctxw context.Context) {
 	ctx := context.Background()
-	ch, errs := w.client.Subscribe(ctx, "namespace==moby")
+	ch, errs := w.Container.Subscribe(ctx, "namespace==moby")
 	for {
 		select {
 		case <-ctxw.Done():
@@ -141,7 +141,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 						log.Error(fmt.Errorf("Can't cast to TaskStart : %s", start))
 						return
 					}
-					cont, err := w.docker.ContainerInspect(ctx, start.ContainerID)
+					cont, err := w.Docker.ContainerInspect(ctx, start.ContainerID)
 					if err != nil {
 						log.Error(err)
 						return
@@ -158,7 +158,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 						log.Error(fmt.Errorf("Can't cast to TaskExit : %s", exit))
 						return
 					}
-					cont, err := w.docker.ContainerInspect(ctx, exit.ContainerID)
+					cont, err := w.Docker.ContainerInspect(ctx, exit.ContainerID)
 					if err != nil {
 						log.Error(err)
 						return
@@ -175,7 +175,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 						log.Error(fmt.Errorf("Can't cast to TaskDelete: %s", delete))
 						return
 					}
-					cont, err := w.docker.ContainerInspect(ctx, delete.ContainerID)
+					cont, err := w.Docker.ContainerInspect(ctx, delete.ContainerID)
 					if err != nil {
 						log.Error(err)
 						return
