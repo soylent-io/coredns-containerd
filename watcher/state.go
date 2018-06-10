@@ -21,15 +21,22 @@ func NewState(socketContainerd, socketDocker string) (*State, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &State{
-		watcher: w,
-	}, nil
+	s := &State{
+		watcher:    w,
+		containers: make(map[string]*types.ContainerJSON),
+	}
+	s.watcher.HandleStart("", func(cont *types.ContainerJSON, event *events.TaskStart) {
+		s.containers[cont.ID] = cont
+	})
+	s.watcher.HandleExit("", func(cont *types.ContainerJSON, event *events.TaskExit) {
+		delete(s.containers, cont.ID)
+	})
+	return s, nil
 }
 
 // HandleCreate handles create events
 func (s *State) HandleCreate(filter string, handler func(*types.ContainerJSON)) error {
 	return s.watcher.HandleStart(filter, func(cont *types.ContainerJSON, event *events.TaskStart) {
-		s.containers[cont.ID] = cont
 		handler(cont)
 	})
 }
@@ -37,7 +44,6 @@ func (s *State) HandleCreate(filter string, handler func(*types.ContainerJSON)) 
 // HandleDelete handles delete events
 func (s *State) HandleDelete(filter string, handler func(*types.ContainerJSON)) error {
 	return s.watcher.HandleExit(filter, func(cont *types.ContainerJSON, event *events.TaskExit) {
-		delete(s.containers, cont.ID)
 		handler(cont)
 	})
 }
