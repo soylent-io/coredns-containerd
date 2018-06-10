@@ -56,6 +56,7 @@ func (s *State) HandleDelete(filter string, handler func(*types.ContainerJSON)) 
 
 // Listen looks for already existing containers and watch for events
 func (s *State) Listen(ctxw context.Context) error {
+	// First loop over already known containers
 	ctx := context.Background()
 	containers, err := s.watcher.Container.Containers(ctx, "")
 	if err != nil {
@@ -74,6 +75,7 @@ func (s *State) Listen(ctxw context.Context) error {
 			}
 		}(s.watcher.Docker, container.ID())
 	}
+	// Then watch for docker events
 	s.watcher.Listen(ctxw)
 	return nil
 }
