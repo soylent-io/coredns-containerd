@@ -5,8 +5,8 @@ import (
 
 	"github.com/containerd/containerd/api/events"
 	"github.com/docker/docker/api/types"
+	"github.com/factorysh/containers-watch/watcher"
 	log "github.com/sirupsen/logrus"
-	"gitlab.bearstech.com/factory/containers-watch/watcher"
 )
 
 func main() {

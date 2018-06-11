@@ -1,16 +1,16 @@
 bin: vendor
-	go build gitlab.bearstech.com/factory/containers-watch/
+	go build github.com/factorysh/containers-watch/
 
 vendor:
 	dep ensure -v
 
 test:
-	go test gitlab.bearstech.com/factory/containers-watch/watcher
+	go test github.com/factorysh/containers-watch/watcher
 	
 docker: vendor
 	docker run -ti --rm \
-	-v `pwd`:/go/src/gitlab.bearstech.com/factory/containers-watch/ \
-	-w /go/src/gitlab.bearstech.com/factory/containers-watch/ \
+	-v `pwd`:/go/src/github.com/factorysh/containers-watch/ \
+	-w /go/src/github.com/factorysh/containers-watch/ \
     bearstech/golang-dep \
 	make bin
 
