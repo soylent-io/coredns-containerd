@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/containerd/containerd/api/events"
 	"github.com/docker/docker/api/types"
@@ -58,6 +59,7 @@ func (s *State) HandleDelete(filter string, handler func(*types.ContainerJSON)) 
 func (s *State) Listen(ctxw context.Context) error {
 	// First loop over already known containers
 	ctx := context.Background()
+	ctxCont := context.Background()
 	containers, err := s.watcher.Container.Containers(ctx, "")
 	if err != nil {
 		return err
@@ -65,6 +67,17 @@ func (s *State) Listen(ctxw context.Context) error {
 	for _, container := range containers {
 		go func(docker *client.Client, id string) {
 			ctx := context.Background()
+			contc, err := s.watcher.Container.LoadContainer(ctxCont, id)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			info, err := contc.Info(ctxCont)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			fmt.Println("info spec: ", info.Spec)
 			cont, err := docker.ContainerInspect(ctx, id)
 			if err != nil {
 				log.Error(err)
