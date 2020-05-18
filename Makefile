@@ -1,13 +1,10 @@
-bin: vendor
+bin:
 	go build github.com/factorysh/containers-watch/
-
-vendor:
-	dep ensure -v
 
 test:
 	go test github.com/factorysh/containers-watch/watcher
 	
-docker: vendor
+docker:
 	docker run -ti --rm \
 	-v `pwd`:/go/src/github.com/factorysh/containers-watch/ \
 	-w /go/src/github.com/factorysh/containers-watch/ \
@@ -20,6 +17,3 @@ upx:
 	-w /upx \
 	bearstech/upx \
 	upx containers-watch
-
-clean:
-	rm -rf vendor

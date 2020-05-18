@@ -2,20 +2,25 @@ package watcher
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/docker/docker/api/types"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/api/events"
-	eventsapi "github.com/containerd/containerd/api/services/events/v1"
+	_events "github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/filters"
 	"github.com/containerd/containerd/runtime"
 	"github.com/containerd/typeurl"
 	"github.com/docker/docker/client"
+	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
 // Watcher watch the watchmen
@@ -30,17 +35,17 @@ type Watcher struct {
 
 type startHandler struct {
 	filter  filters.Filter
-	handler func(*types.ContainerJSON, *events.TaskStart)
+	handler func(*types.ContainerJSON, *_events.TaskStart)
 }
 
 type exitHandler struct {
 	filter  filters.Filter
-	handler func(*types.ContainerJSON, *events.TaskExit)
+	handler func(*types.ContainerJSON, *_events.TaskExit)
 }
 
 type deleteHandler struct {
 	filter  filters.Filter
-	handler func(*types.ContainerJSON, *events.TaskDelete)
+	handler func(*types.ContainerJSON, *_events.TaskDelete)
 }
 
 // New Watcher
@@ -49,7 +54,7 @@ func New(socketContainerd, socketDocker string) (*Watcher, error) {
 		socketContainerd = os.Getenv("CONTAINERD_SOCKET")
 		if socketContainerd == "" {
 			// Default Debian value
-			socketContainerd = "/var/run/docker/containerd/docker-containerd.sock"
+			socketContainerd = "/var/run/containerd/containerd.sock"
 		}
 	}
 	cli, err := containerd.New(socketContainerd, containerd.WithDefaultNamespace("moby"))
@@ -77,7 +82,7 @@ func (w *Watcher) Version() (containerd.Version, error) {
 }
 
 // HandleStart handles start
-func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, *events.TaskStart)) error {
+func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, *_events.TaskStart)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
 		return err
@@ -90,7 +95,7 @@ func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, 
 }
 
 // HandleExit handles exit
-func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *events.TaskExit)) error {
+func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *_events.TaskExit)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
 		return err
@@ -103,7 +108,7 @@ func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *
 }
 
 // HandleDelete handles delete
-func (w *Watcher) HandleDelete(filter string, handler func(*types.ContainerJSON, *events.TaskDelete)) error {
+func (w *Watcher) HandleDelete(filter string, handler func(*types.ContainerJSON, *_events.TaskDelete)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
 		return err
@@ -127,7 +132,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 		case err := <-errs:
 			log.Error(err)
 		case c := <-ch:
-			go func(c *eventsapi.Envelope) {
+			go func(c *events.Envelope) {
 				v, err := typeurl.UnmarshalAny(c.Event)
 				if err != nil {
 					log.Error(err)
@@ -136,7 +141,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 				ctx := context.Background()
 				switch c.Topic {
 				case runtime.TaskStartEventTopic:
-					start, ok := v.(*events.TaskStart)
+					start, ok := v.(*_events.TaskStart)
 					if !ok {
 						log.Error(fmt.Errorf("Can't cast to TaskStart : %s", start))
 						return
@@ -146,6 +151,31 @@ func (w *Watcher) Listen(ctxw context.Context) {
 						log.Error(err)
 						return
 					}
+					ctxCont := context.Background()
+					contc, err := w.Container.LoadContainer(ctxCont, start.ContainerID)
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					info, err := contc.Info(ctxCont)
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					if info.Spec.GetTypeUrl() == "types.containerd.io/opencontainers/runtime-spec/1/Spec" {
+						spec := specs.Spec{}
+						err = json.Unmarshal(info.Spec.Value, &spec)
+						if err != nil {
+							log.Error(err)
+							return
+						}
+						b, err := yaml.Marshal(spec)
+						if err != nil {
+							log.Error(err)
+							return
+						}
+						fmt.Println(string(b))
+					}
 					ca := NewContainerAdaptor(&cont)
 					for _, h := range w.startHandlers {
 						if h.filter.Match(ca) {
@@ -153,7 +183,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 						}
 					}
 				case runtime.TaskExitEventTopic:
-					exit, ok := v.(*events.TaskExit)
+					exit, ok := v.(*_events.TaskExit)
 					if !ok {
 						log.Error(fmt.Errorf("Can't cast to TaskExit : %s", exit))
 						return
@@ -170,7 +200,7 @@ func (w *Watcher) Listen(ctxw context.Context) {
 						}
 					}
 				case runtime.TaskDeleteEventTopic:
-					delete, ok := v.(*events.TaskDelete)
+					delete, ok := v.(*_events.TaskDelete)
 					if !ok {
 						log.Error(fmt.Errorf("Can't cast to TaskDelete: %s", delete))
 						return
