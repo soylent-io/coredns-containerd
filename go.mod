@@ -3,7 +3,7 @@ module github.com/factorysh/containers-watch
 go 1.14
 
 require (
-	github.com/containerd/containerd v1.5.8
+	github.com/containerd/containerd v1.5.9
 	github.com/containerd/typeurl v1.0.2
 	github.com/docker/docker v1.13.1
 	github.com/docker/go-connections v0.4.0 // indirect
