@@ -9,8 +9,8 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 
-	"github.com/soylent-io/coredns-containerd/watcher"
 	log "github.com/sirupsen/logrus"
+	"github.com/soylent-io/coredns-containerd/watcher"
 
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
@@ -66,13 +66,11 @@ func (cd *ContainerdDiscovery) ServeDNS(ctx context.Context, w dns.ResponseWrite
 	switch state.QType() {
 	case dns.TypeA:
 		val, ok := cd.A[state.QName()]
-		cd.mutex.RUnlock()
 		if ok {
 			answers = getAnswer(state.Name(), []net.IP{val}, cd.ttl, false)
 		}
 	case dns.TypeAAAA:
 		val, ok := cd.AAAA[state.QName()]
-		cd.mutex.RUnlock()
 		if ok {
 			answers = getAnswer(state.Name(), []net.IP{val}, cd.ttl, true)
 		} else {
