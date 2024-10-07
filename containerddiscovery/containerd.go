@@ -9,7 +9,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 
-	"github.com/factorysh/containers-watch/watcher"
+	"github.com/soylent-io/coredns-containerddiscovery/watcher"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vishvananda/netlink"

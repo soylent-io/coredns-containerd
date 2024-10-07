@@ -1,19 +1,21 @@
+MODPATH=	github.com/soylent-io/coredns-containerddiscovery
+
 bin:
-	go build github.com/factorysh/containers-watch/
+	go build ${MODPATH}
 
 test:
-	go test github.com/factorysh/containers-watch/watcher
+	go test ${MODPATH}/watcher
 	
 docker:
 	docker run -ti --rm \
-	-v `pwd`:/go/src/github.com/factorysh/containers-watch/ \
-	-w /go/src/github.com/factorysh/containers-watch/ \
-    bearstech/golang-dep \
-	make bin
+		-v `pwd`:/go/src/${MODPATH} \
+		-w /go/src/${MODPATH} \
+		bearstech/golang-dep \
+		make bin
 
 upx:
 	docker run -ti --rm \
-	-v `pwd`:/upx \
-	-w /upx \
-	bearstech/upx \
-	upx containers-watch
+		-v `pwd`:/upx \
+		-w /upx \
+		bearstech/upx \
+		upx coredns-containerddiscovery

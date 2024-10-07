@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/factorysh/containers-watch/containerddiscovery"
+	"github.com/soylent-io/coredns-containerddiscovery/containerddiscovery"
 )
 
 func main() {

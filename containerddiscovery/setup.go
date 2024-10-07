@@ -3,7 +3,7 @@ package containerddiscovery
 import (
 	"strconv"
 
-	"github.com/factorysh/containers-watch/watcher"
+	"github.com/soylent-io/coredns-containerddiscovery/watcher"
 
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
