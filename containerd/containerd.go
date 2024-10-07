@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/namespaces"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/soylent-io/coredns-containerd/watcher"
+
+	//runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
@@ -31,6 +35,7 @@ type ContainerdDiscovery struct {
 	containerdEndpoint string
 	domain             string
 	watcher            *watcher.Watcher
+	//runtimeClient      runtimeapi.RuntimeServiceClient
 
 	A    map[string]net.IP
 	AAAA map[string]net.IP
@@ -58,7 +63,7 @@ func (cd *ContainerdDiscovery) Name() string {
 // ServeDNS implements plugin.Handler
 func (cd *ContainerdDiscovery) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
-	log.Infof("ServeDNS: QName %s\n", state.QName())
+	log.Infof("ServeDNS: QName %s", state.QName())
 
 	cd.mutex.RLock()
 	defer cd.mutex.RUnlock()
@@ -119,7 +124,7 @@ func (cd *ContainerdDiscovery) start() error {
 
 	// Iterate through the containers and print their IDs and names
 	for _, c := range containers {
-		log.Infof("Found container: %s\n", c.ID())
+		log.Infof("Found container: %s", c.ID())
 		cd.updateContainerRR(c)
 	}
 
@@ -146,16 +151,13 @@ func (cd *ContainerdDiscovery) updateContainerRR(c containerd.Container) {
 	cd.mutex.Lock()
 	defer cd.mutex.Unlock()
 
-	ipv4, err := getContainerAddress(c)
-	if err != nil {
-		return
-	}
-	hostname, err := getContainerHostname(c)
-	if err != nil {
+	hostname, err := cd.getContainerHostname(c)
+	if err != nil || hostname == "" {
 		return
 	}
 
-	if ipv4 == nil || hostname == "" {
+	ipv4, err := cd.getContainerAddress(c)
+	if err != nil {
 		return
 	}
 
@@ -193,9 +195,19 @@ func getAnswer(zone string, ips []net.IP, ttl uint32, v6 bool) []dns.RR {
 	return answers
 }
 
-func getContainerAddress(c containerd.Container) (net.IP, error) {
+func (cd *ContainerdDiscovery) getContainerAddress(c containerd.Container) (net.IP, error) {
+	ip, err := cd.getContainerAddressCRI(c)
+	if ip != nil {
+		return ip, err
+	}
+
+	ip, err = cd.getContainerAddressCNI(c)
+	if ip != nil {
+		return ip, err
+	}
+
 	// Get the container task (process)
-	task, err := c.Task(context.Background(), nil)
+	task, err := c.Task(context.Background(), cio.Load)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -240,7 +252,61 @@ func getContainerAddress(c containerd.Container) (net.IP, error) {
 	return nil, nil
 }
 
-func getContainerHostname(c containerd.Container) (string, error) {
+func (cd *ContainerdDiscovery) getContainerAddressCRI( /* c */ containerd.Container) (net.IP, error) {
+	/*
+		resp, err := cd.runtimeClient.PodSandboxStatus(context.Background(), &runtimeapi.PodSandboxStatusRequest{
+			PodSandboxId: c.ID(),
+		})
+		if err != nil {
+			log.Warnf("Failed to get pod sandbox status: %v", err)
+			return nil, err
+		}
+		ip, _, err := net.ParseCIDR(resp.Status.Network.Ip)
+		if err != nil {
+			log.Warn(err)
+			return nil, err
+		}
+		return ip, nil
+	*/
+	return nil, nil
+}
+
+func (cd *ContainerdDiscovery) getContainerAddressCNI(c containerd.Container) (net.IP, error) {
+	cniResultFile := "/var/lib/cni/results/bridge-" + c.ID() + "-eth0"
+	data, err := os.ReadFile(cniResultFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Warn(err)
+		}
+		return nil, err
+	}
+
+	var res map[string]interface{}
+	err = json.Unmarshal(data, &res)
+	if err != nil {
+		log.Warn(err)
+		return nil, err
+	}
+
+	if result, ok := res["result"].(map[string]interface{}); ok {
+		if ips, ok := result["ips"].([]interface{}); ok && len(ips) > 0 {
+			if ip0, ok := ips[0].(map[string]interface{}); ok {
+				if address, ok := ip0["address"].(string); ok {
+					ip, _, err := net.ParseCIDR(address)
+					if err != nil {
+						log.Warn(err)
+						return nil, err
+					}
+					return ip, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+func (cd *ContainerdDiscovery) getContainerHostname(c containerd.Container) (string, error) {
 	info, err := c.Info(context.Background())
 	if err != nil {
 		log.Error(err)

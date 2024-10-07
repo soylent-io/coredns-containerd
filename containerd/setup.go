@@ -3,7 +3,12 @@ package containerd
 import (
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/soylent-io/coredns-containerd/watcher"
+
+	//"google.golang.org/grpc"
+	//"google.golang.org/grpc/credentials/insecure"
+	//runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
@@ -65,6 +70,14 @@ func createPlugin(c *caddy.Controller) (*ContainerdDiscovery, error) {
 		return cd, err
 	}
 	cd.watcher = watcher
+
+	/*
+		conn, err := grpc.NewClient(cd.containerdEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return cd, err
+		}
+		cd.runtimeClient = runtimeapi.NewRuntimeServiceClient(conn)
+	*/
 	return cd, nil
 }
 
@@ -83,6 +96,7 @@ func setup(c *caddy.Controller) error {
 }
 
 func Main() {
+	log.SetLevel(log.DebugLevel)
 	cd, err := createPlugin(nil)
 	if err != nil {
 		panic(err)
