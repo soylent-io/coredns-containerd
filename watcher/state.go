@@ -4,36 +4,35 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 )
 
 // State manage containers as a CRUD
 type State struct {
 	watcher    *Watcher
-	containers map[string]*types.ContainerJSON
+	containers map[string]containerd.Container
 }
 
 // NewState returns a new State
-func NewState(socketContainerd, socketDocker string) (*State, error) {
-	w, err := New(socketContainerd, socketDocker)
+func NewState(socketContainerd string) (*State, error) {
+	w, err := New(socketContainerd)
 	if err != nil {
 		return nil, err
 	}
 	s := &State{
 		watcher:    w,
-		containers: make(map[string]*types.ContainerJSON),
+		containers: make(map[string]containerd.Container),
 	}
-	err = s.watcher.HandleStart("", func(cont *types.ContainerJSON, event *events.TaskStart) {
-		s.containers[cont.ID] = cont
+	err = s.watcher.HandleStart("", func(cont containerd.Container, event *events.TaskStart) {
+		s.containers[cont.ID()] = cont
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = s.watcher.HandleExit("", func(cont *types.ContainerJSON, event *events.TaskExit) {
-		delete(s.containers, cont.ID)
+	err = s.watcher.HandleExit("", func(cont containerd.Container, event *events.TaskExit) {
+		delete(s.containers, cont.ID())
 	})
 	if err != nil {
 		return nil, err
@@ -42,15 +41,15 @@ func NewState(socketContainerd, socketDocker string) (*State, error) {
 }
 
 // HandleCreate handles create events
-func (s *State) HandleCreate(filter string, handler func(*types.ContainerJSON)) error {
-	return s.watcher.HandleStart(filter, func(cont *types.ContainerJSON, event *events.TaskStart) {
+func (s *State) HandleCreate(filter string, handler func(containerd.Container)) error {
+	return s.watcher.HandleStart(filter, func(cont containerd.Container, event *events.TaskStart) {
 		handler(cont)
 	})
 }
 
 // HandleDelete handles delete events
-func (s *State) HandleDelete(filter string, handler func(*types.ContainerJSON)) error {
-	return s.watcher.HandleExit(filter, func(cont *types.ContainerJSON, event *events.TaskExit) {
+func (s *State) HandleDelete(filter string, handler func(containerd.Container)) error {
+	return s.watcher.HandleExit(filter, func(cont containerd.Container, event *events.TaskExit) {
 		handler(cont)
 	})
 }
@@ -65,8 +64,7 @@ func (s *State) Listen(ctxw context.Context) error {
 		return err
 	}
 	for _, container := range containers {
-		go func(docker *client.Client, id string) {
-			ctx := context.Background()
+		go func(id string) {
 			contc, err := s.watcher.Container.LoadContainer(ctxCont, id)
 			if err != nil {
 				log.Error(err)
@@ -78,15 +76,10 @@ func (s *State) Listen(ctxw context.Context) error {
 				return
 			}
 			fmt.Println("info spec: ", info.Spec)
-			cont, err := docker.ContainerInspect(ctx, id)
-			if err != nil {
-				log.Error(err)
-				return
-			}
 			for _, h := range s.watcher.startHandlers {
-				h.handler(&cont, nil)
+				h.handler(contc, nil)
 			}
-		}(s.watcher.Docker, container.ID())
+		}(container.ID())
 	}
 	// Then watch for docker events
 	s.watcher.Listen(ctxw)

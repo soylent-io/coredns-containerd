@@ -2,14 +2,8 @@ package watcher
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
-
-	"gopkg.in/yaml.v2"
-
-	"github.com/docker/docker/api/types"
 
 	log "github.com/sirupsen/logrus"
 
@@ -18,16 +12,13 @@ import (
 	"github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/filters"
 	"github.com/containerd/containerd/runtime"
-	"github.com/containerd/typeurl"
-	"github.com/docker/docker/client"
-	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/containerd/typeurl/v2"
 )
 
 // Watcher watch the watchmen
-// Watch Containerd for Docker events
+// Watch Containerd for container events
 type Watcher struct {
 	Container      *containerd.Client
-	Docker         *client.Client
 	startHandlers  []*startHandler
 	exitHandlers   []*exitHandler
 	deleteHandlers []*deleteHandler
@@ -35,21 +26,21 @@ type Watcher struct {
 
 type startHandler struct {
 	filter  filters.Filter
-	handler func(*types.ContainerJSON, *_events.TaskStart)
+	handler func(containerd.Container, *_events.TaskStart)
 }
 
 type exitHandler struct {
 	filter  filters.Filter
-	handler func(*types.ContainerJSON, *_events.TaskExit)
+	handler func(containerd.Container, *_events.TaskExit)
 }
 
 type deleteHandler struct {
 	filter  filters.Filter
-	handler func(*types.ContainerJSON, *_events.TaskDelete)
+	handler func(containerd.Container, *_events.TaskDelete)
 }
 
 // New Watcher
-func New(socketContainerd, socketDocker string) (*Watcher, error) {
+func New(socketContainerd string) (*Watcher, error) {
 	if socketContainerd == "" {
 		socketContainerd = os.Getenv("CONTAINERD_SOCKET")
 		if socketContainerd == "" {
@@ -57,22 +48,13 @@ func New(socketContainerd, socketDocker string) (*Watcher, error) {
 			socketContainerd = "/var/run/containerd/containerd.sock"
 		}
 	}
-	cli, err := containerd.New(socketContainerd, containerd.WithDefaultNamespace("moby"))
+	cli, err := containerd.New(socketContainerd, containerd.WithDefaultNamespace("k8s.io"))
 	if err != nil {
 		return nil, err
 	}
-	var clientDocker *client.Client
-	if socketDocker == "" {
-		clientDocker, err = client.NewEnvClient()
-	} else {
-		clientDocker, err = client.NewClient(socketDocker, "", &http.Client{}, map[string]string{})
-	}
-	if err != nil {
-		return nil, err
-	}
+
 	return &Watcher{
 		Container: cli,
-		Docker:    clientDocker,
 	}, nil
 }
 
@@ -82,7 +64,7 @@ func (w *Watcher) Version() (containerd.Version, error) {
 }
 
 // HandleStart handles start
-func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, *_events.TaskStart)) error {
+func (w *Watcher) HandleStart(filter string, handler func(containerd.Container, *_events.TaskStart)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
 		return err
@@ -95,7 +77,7 @@ func (w *Watcher) HandleStart(filter string, handler func(*types.ContainerJSON, 
 }
 
 // HandleExit handles exit
-func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *_events.TaskExit)) error {
+func (w *Watcher) HandleExit(filter string, handler func(containerd.Container, *_events.TaskExit)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
 		return err
@@ -108,7 +90,7 @@ func (w *Watcher) HandleExit(filter string, handler func(*types.ContainerJSON, *
 }
 
 // HandleDelete handles delete
-func (w *Watcher) HandleDelete(filter string, handler func(*types.ContainerJSON, *_events.TaskDelete)) error {
+func (w *Watcher) HandleDelete(filter string, handler func(containerd.Container, *_events.TaskDelete)) error {
 	f, err := filters.Parse(filter)
 	if err != nil {
 		return err
@@ -123,7 +105,7 @@ func (w *Watcher) HandleDelete(filter string, handler func(*types.ContainerJSON,
 // Listen events
 func (w *Watcher) Listen(ctxw context.Context) {
 	ctx := context.Background()
-	ch, errs := w.Container.Subscribe(ctx, "namespace==moby")
+	ch, errs := w.Container.Subscribe(ctx, "namespace==k8s.io")
 	for {
 		select {
 		case <-ctxw.Done():
@@ -138,17 +120,11 @@ func (w *Watcher) Listen(ctxw context.Context) {
 					log.Error(err)
 					return
 				}
-				ctx := context.Background()
 				switch c.Topic {
 				case runtime.TaskStartEventTopic:
 					start, ok := v.(*_events.TaskStart)
 					if !ok {
-						log.Error(fmt.Errorf("Can't cast to TaskStart : %s", start))
-						return
-					}
-					cont, err := w.Docker.ContainerInspect(ctx, start.ContainerID)
-					if err != nil {
-						log.Error(err)
+						log.Error(fmt.Errorf("can't cast to TaskStart : %s", start))
 						return
 					}
 					ctxCont := context.Background()
@@ -157,63 +133,46 @@ func (w *Watcher) Listen(ctxw context.Context) {
 						log.Error(err)
 						return
 					}
-					info, err := contc.Info(ctxCont)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					if info.Spec.GetTypeUrl() == "types.containerd.io/opencontainers/runtime-spec/1/Spec" {
-						spec := specs.Spec{}
-						err = json.Unmarshal(info.Spec.Value, &spec)
-						if err != nil {
-							log.Error(err)
-							return
-						}
-						b, err := yaml.Marshal(spec)
-						if err != nil {
-							log.Error(err)
-							return
-						}
-						fmt.Println(string(b))
-					}
-					ca := NewContainerAdaptor(&cont)
+					ca := NewContainerAdaptor(contc)
 					for _, h := range w.startHandlers {
 						if h.filter.Match(ca) {
-							go h.handler(&cont, start)
+							go h.handler(contc, start)
 						}
 					}
 				case runtime.TaskExitEventTopic:
 					exit, ok := v.(*_events.TaskExit)
 					if !ok {
-						log.Error(fmt.Errorf("Can't cast to TaskExit : %s", exit))
+						log.Error(fmt.Errorf("can't cast to TaskExit : %s", exit))
 						return
 					}
-					cont, err := w.Docker.ContainerInspect(ctx, exit.ContainerID)
+					ctxCont := context.Background()
+					contc, err := w.Container.LoadContainer(ctxCont, exit.ContainerID)
 					if err != nil {
 						log.Error(err)
 						return
 					}
-					ca := NewContainerAdaptor(&cont)
+					ca := NewContainerAdaptor(contc)
 					for _, h := range w.exitHandlers {
 						if h.filter.Match(ca) {
-							go h.handler(&cont, exit)
+							go h.handler(contc, exit)
 						}
 					}
 				case runtime.TaskDeleteEventTopic:
 					delete, ok := v.(*_events.TaskDelete)
 					if !ok {
-						log.Error(fmt.Errorf("Can't cast to TaskDelete: %s", delete))
+						log.Error(fmt.Errorf("can't cast to TaskDelete: %s", delete))
 						return
 					}
-					cont, err := w.Docker.ContainerInspect(ctx, delete.ContainerID)
+					ctxCont := context.Background()
+					contc, err := w.Container.LoadContainer(ctxCont, delete.ContainerID)
 					if err != nil {
 						log.Error(err)
 						return
 					}
-					ca := NewContainerAdaptor(&cont)
+					ca := NewContainerAdaptor(contc)
 					for _, h := range w.deleteHandlers {
 						if h.filter.Match(ca) {
-							go h.handler(&cont, delete)
+							go h.handler(contc, delete)
 						}
 					}
 				}

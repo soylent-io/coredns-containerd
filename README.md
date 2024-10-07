@@ -1,9 +1,6 @@
 Container watch
 ===============
 
-Listen Docker events throught containerd sockets, and do stuff.
+Listen containerd events throught containerd sockets, and do stuff.
 
-Licence
--------
-
-3 terms BSD licence, ©2018 Mathieu Lecarme
+Based on https://github.com/factorysh/containers-watch/
