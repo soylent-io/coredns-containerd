@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/soylent-io/coredns-containerddiscovery/containerddiscovery"
+	"github.com/soylent-io/coredns-containerd/containerd"
 )
 
 func main() {
-	containerddiscovery.Main()
+	containerd.Main()
 }

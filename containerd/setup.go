@@ -1,9 +1,9 @@
-package containerddiscovery
+package containerd
 
 import (
 	"strconv"
 
-	"github.com/soylent-io/coredns-containerddiscovery/watcher"
+	"github.com/soylent-io/coredns-containerd/watcher"
 
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"

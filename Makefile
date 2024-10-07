@@ -1,4 +1,4 @@
-MODPATH=	github.com/soylent-io/coredns-containerddiscovery
+MODPATH=	github.com/soylent-io/coredns-containerd
 
 bin:
 	go build ${MODPATH}
@@ -18,4 +18,4 @@ upx:
 		-v `pwd`:/upx \
 		-w /upx \
 		bearstech/upx \
-		upx coredns-containerddiscovery
+		upx coredns-containerd

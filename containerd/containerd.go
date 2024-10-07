@@ -1,4 +1,4 @@
-package containerddiscovery
+package containerd
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 
-	"github.com/soylent-io/coredns-containerddiscovery/watcher"
+	"github.com/soylent-io/coredns-containerd/watcher"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vishvananda/netlink"

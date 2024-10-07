@@ -1,4 +1,4 @@
-module github.com/soylent-io/coredns-containerddiscovery
+module github.com/soylent-io/coredns-containerd
 
 go 1.22.0
 
