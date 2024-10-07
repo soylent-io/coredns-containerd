@@ -8,6 +8,7 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/namespaces"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/soylent-io/coredns-containerd/watcher"
@@ -110,7 +111,8 @@ func (cd *ContainerdDiscovery) ServeDNS(ctx context.Context, w dns.ResponseWrite
 
 func (cd *ContainerdDiscovery) start() error {
 	// List all containers in the namespace
-	containers, err := cd.watcher.Container.Containers(context.Background())
+	ctx := namespaces.WithNamespace(context.Background(), "k8s.io")
+	containers, err := cd.watcher.Container.Containers(ctx)
 	if err != nil {
 		panic(err)
 	}
