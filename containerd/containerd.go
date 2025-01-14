@@ -49,6 +49,8 @@ func NewContainerdDiscovery(containerdEndpoint, domain string) *ContainerdDiscov
 	return &ContainerdDiscovery{
 		containerdEndpoint: containerdEndpoint,
 		domain:             domain,
+		watcher:            nil,
+		//runetimeClient:     nil,
 		A:                  make(map[string]net.IP),
 		AAAA:               make(map[string]net.IP),
 		ttl:                3600,
@@ -254,6 +256,10 @@ func (cd *ContainerdDiscovery) getContainerAddress(c containerd.Container) (net.
 
 func (cd *ContainerdDiscovery) getContainerAddressCRI( /* c */ containerd.Container) (net.IP, error) {
 	/*
+	 * This code produces the following error:
+	 * WARN[0000] Failed to get pod sandbox status: rpc error: code = Unavailable desc = name resolver error: produced zero addresses
+	 *
+
 		resp, err := cd.runtimeClient.PodSandboxStatus(context.Background(), &runtimeapi.PodSandboxStatusRequest{
 			PodSandboxId: c.ID(),
 		})
