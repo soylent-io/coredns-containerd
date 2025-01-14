@@ -3,7 +3,6 @@ package watcher
 import (
 	"context"
 	"fmt"
-	"os"
 
 	log "github.com/sirupsen/logrus"
 
@@ -41,13 +40,6 @@ type deleteHandler struct {
 
 // New Watcher
 func New(socketContainerd string) (*Watcher, error) {
-	if socketContainerd == "" {
-		socketContainerd = os.Getenv("CONTAINERD_SOCKET")
-		if socketContainerd == "" {
-			// Default Debian value
-			socketContainerd = "/var/run/containerd/containerd.sock"
-		}
-	}
 	cli, err := containerd.New(socketContainerd, containerd.WithDefaultNamespace("k8s.io"))
 	if err != nil {
 		return nil, err
