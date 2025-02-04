@@ -143,6 +143,8 @@ func (cd *ContainerdDiscovery) start() error {
 	})
 	cd.watcher.HandleExit("", func(c containerd.Container, event *events.TaskExit) {
 		log.Infof("Exit: %s", c.ID())
+
+		cd.deleteContainerRR(c)
 	})
 	cd.watcher.Listen(context.Background())
 
@@ -165,7 +167,21 @@ func (cd *ContainerdDiscovery) updateContainerRR(c containerd.Container) {
 
 	d := hostname + "." + cd.domain + "."
 	cd.A[d] = ipv4
-	log.Infof("%s A %s", d, ipv4)
+	log.Infof("ADD %s A %s", d, ipv4)
+}
+
+func (cd *ContainerdDiscovery) deleteContainerRR(c containerd.Container) {
+	cd.mutex.Lock()
+	defer cd.mutex.Unlock()
+
+	hostname, err := cd.getContainerHostname(c)
+	if err != nil || hostname == "" {
+		return
+	}
+
+	d := hostname + "." + cd.domain + "."
+	delete(cd.A, d)
+	log.Infof("DEL %s A", d)
 }
 
 // getAnswer function takes a slice of net.IPs and returns a slice of A/AAAA RRs.
