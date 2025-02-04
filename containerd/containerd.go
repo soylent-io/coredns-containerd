@@ -334,6 +334,12 @@ func (cd *ContainerdDiscovery) getContainerHostname(c containerd.Container) (str
 		log.Error(err)
 		return "", err
 	}
+
+	log.Debug("Container Labels:")
+	for key, value := range info.Labels {
+		log.Debugf("\t%s: %s", key, value)
+	}
+
 	if info.Spec.GetTypeUrl() == "types.containerd.io/opencontainers/runtime-spec/1/Spec" {
 		spec := specs.Spec{}
 		err = json.Unmarshal(info.Spec.GetValue(), &spec)
@@ -342,7 +348,15 @@ func (cd *ContainerdDiscovery) getContainerHostname(c containerd.Container) (str
 			return "", err
 		}
 
-		return spec.Hostname, nil
+		if spec.Hostname != "" {
+			// get container namespace (if any)
+			ns, ok := info.Labels["io.kubernetes.pod.namespace"]
+			if ok {
+				ns = "." + ns
+			}
+
+			return spec.Hostname + ns, nil
+		}
 	}
 
 	return "", nil
