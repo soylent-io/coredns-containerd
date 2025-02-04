@@ -17,6 +17,7 @@ import (
 
 const defaultContainerdEndpoint = "/var/run/containerd/containerd.sock"
 const defaultContainerdDomain = "node.local"
+const defaultHostnameLabel = "app.kubernetes.io/hostname"
 
 func init() {
 	caddy.RegisterPlugin("containerd", caddy.Plugin{
@@ -26,7 +27,7 @@ func init() {
 }
 
 func createPlugin(c *caddy.Controller) (*ContainerdDiscovery, error) {
-	cd := NewContainerdDiscovery(defaultContainerdEndpoint, defaultContainerdDomain)
+	cd := NewContainerdDiscovery(defaultContainerdEndpoint, defaultContainerdDomain, defaultHostnameLabel)
 
 	if c != nil {
 		for c.Next() {
@@ -47,6 +48,11 @@ func createPlugin(c *caddy.Controller) (*ContainerdDiscovery, error) {
 						return cd, c.ArgErr()
 					}
 					cd.domain = c.Val()
+				case "hostname-label":
+					if !c.NextArg() {
+						return cd, c.ArgErr()
+					}
+					cd.hostnameLabel = c.Val()
 				case "ttl":
 					if !c.NextArg() {
 						return cd, c.ArgErr()

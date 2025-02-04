@@ -34,6 +34,7 @@ type ContainerdDiscovery struct {
 	Next               plugin.Handler
 	containerdEndpoint string
 	domain             string
+	hostnameLabel      string
 	watcher            *watcher.Watcher
 	//runtimeClient      runtimeapi.RuntimeServiceClient
 
@@ -45,10 +46,11 @@ type ContainerdDiscovery struct {
 }
 
 // NewContainerdDiscovery constructs a new DockerDiscovery object
-func NewContainerdDiscovery(containerdEndpoint, domain string) *ContainerdDiscovery {
+func NewContainerdDiscovery(containerdEndpoint, domain string, hostnameLabel string) *ContainerdDiscovery {
 	return &ContainerdDiscovery{
 		containerdEndpoint: containerdEndpoint,
 		domain:             domain,
+		hostnameLabel:      hostnameLabel,
 		watcher:            nil,
 		//runetimeClient:     nil,
 		A:                  make(map[string]net.IP),
@@ -335,11 +337,31 @@ func (cd *ContainerdDiscovery) getContainerHostname(c containerd.Container) (str
 		return "", err
 	}
 
+	if info.Labels["io.cri-containerd.kind"] != "sandbox" {
+		// not a pod container
+		return "", err
+	}
+
 	log.Debug("Container Labels:")
 	for key, value := range info.Labels {
 		log.Debugf("\t%s: %s", key, value)
 	}
 
+	// get container namespace (if any)
+	ns, ok := info.Labels["io.kubernetes.pod.namespace"]
+	if ok {
+		ns = "." + ns
+	}
+
+	// try hostname label (if any)
+	if cd.hostnameLabel != "" {
+		hostname := info.Labels[cd.hostnameLabel]
+		if hostname != "" {
+			return hostname + ns, nil
+		}
+	}
+
+	// fallback to hostname
 	if info.Spec.GetTypeUrl() == "types.containerd.io/opencontainers/runtime-spec/1/Spec" {
 		spec := specs.Spec{}
 		err = json.Unmarshal(info.Spec.GetValue(), &spec)
@@ -349,12 +371,6 @@ func (cd *ContainerdDiscovery) getContainerHostname(c containerd.Container) (str
 		}
 
 		if spec.Hostname != "" {
-			// get container namespace (if any)
-			ns, ok := info.Labels["io.kubernetes.pod.namespace"]
-			if ok {
-				ns = "." + ns
-			}
-
 			return spec.Hostname + ns, nil
 		}
 	}
