@@ -31,6 +31,6 @@ In coredns/ directory with "coredns" built:
 
 ```
 $ mkdir -p build/docker/amd64
-$ cp coredns build/docker/amd64
+$ cp -a coredns build/docker/amd64
 $ make -f Makefile.docker DOCKER=soylentio LINUX_ARCH=amd64 VERSION=1.11.3-1 docker-build
 ```
