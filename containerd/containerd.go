@@ -73,6 +73,7 @@ func (cd *ContainerdDiscovery) ServeDNS(ctx context.Context, w dns.ResponseWrite
 	defer cd.mutex.RUnlock()
 
 	var answers []dns.RR
+	emptyAnswer := false
 	switch state.QType() {
 	case dns.TypeA:
 		val, ok := cd.A[state.QName()]
@@ -83,10 +84,15 @@ func (cd *ContainerdDiscovery) ServeDNS(ctx context.Context, w dns.ResponseWrite
 		val, ok := cd.AAAA[state.QName()]
 		if ok {
 			answers = getAnswer(state.Name(), []net.IP{val}, cd.ttl, true)
+		} else {
+			// in accordance with https://tools.ietf.org/html/rfc6147#section-5.1.2
+			// we should return an empty answer section if no AAAA records are available
+			// and an A record is available when the client requested AAAA
+			_, emptyAnswer = cd.A[state.QName()]
 		}
 	}
 
-	if len(answers) == 0 {
+	if len(answers) == 0 && !emptyAnswer {
 		return plugin.NextOrFailure(cd.Name(), cd.Next, ctx, w, r)
 	}
 
