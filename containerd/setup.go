@@ -1,6 +1,7 @@
 package containerd
 
 import (
+	"os"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
@@ -92,7 +93,24 @@ func setup(c *caddy.Controller) error {
 	if err != nil {
 		return err
 	}
-	go cd.start()
+
+	// Channel to report fatal errors
+	fatalCh := make(chan error, 1)
+
+	// Start plugin in goroutine
+	go func() {
+		if err := cd.start(); err != nil {
+			fatalCh <- err
+			close(fatalCh)
+		}
+	}()
+
+	// Monitor for fatal plugin errors
+	go func() {
+		err := <-fatalCh
+		log.Errorf("Fatal containerd plugin error: %v", err)
+		os.Exit(1)
+	}()
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
 		cd.Next = next
@@ -107,5 +125,8 @@ func Main() {
 	if err != nil {
 		panic(err)
 	}
-	cd.start()
+	err = cd.start()
+	if err != nil {
+		panic(err)
+	}
 }
