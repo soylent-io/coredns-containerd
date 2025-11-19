@@ -3,6 +3,7 @@ package containerd
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"sync"
@@ -111,11 +112,20 @@ func (cd *ContainerdDiscovery) ServeDNS(ctx context.Context, w dns.ResponseWrite
 }
 
 func (cd *ContainerdDiscovery) start() error {
+	// Print containerd version
+	v, err := cd.watcher.Version()
+	if err != nil {
+		log.Errorf("[containerd] %v", err)
+		return err
+	}
+	log.Infof("[containerd] start: %s", v)
+
 	// List all containers in the namespace
 	ctx := namespaces.WithNamespace(context.Background(), "k8s.io")
 	containers, err := cd.watcher.Container.Containers(ctx)
 	if err != nil {
-		panic(err)
+		log.Errorf("[containerd] %v", err)
+		return err
 	}
 
 	// Iterate through the containers and print their IDs and names
@@ -123,12 +133,6 @@ func (cd *ContainerdDiscovery) start() error {
 		log.Infof("Found container: %s", c.ID())
 		cd.updateContainerRR(c)
 	}
-
-	v, err := cd.watcher.Version()
-	if err != nil {
-		panic(err)
-	}
-	log.Infof("[containerd] start: %s", v)
 
 	cd.watcher.HandleStart("", func(c containerd.Container, event *events.TaskStart) {
 		log.Infof("Start: %s", c.ID())
@@ -140,9 +144,20 @@ func (cd *ContainerdDiscovery) start() error {
 
 		cd.deleteContainerRR(c)
 	})
-	cd.watcher.Listen(context.Background())
 
-	return errors.New("containerd event loop closed")
+	for {
+		err := cd.watcher.Listen(context.Background())
+		if err == nil {
+			log.Infof("[containerd] exit")
+			return nil
+		} else if errors.Is(err, io.EOF) {
+			log.Errorf("[containerd] %v (exit)", err)
+			return err
+		} else {
+			log.Infof("[containerd] %v (reconnecting)", err)
+			continue
+		}
+	}
 }
 
 func (cd *ContainerdDiscovery) updateContainerRR(c containerd.Container) {
