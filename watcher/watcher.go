@@ -8,7 +8,6 @@ import (
 
 	"github.com/containerd/containerd"
 	_events "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/filters"
 	"github.com/containerd/containerd/runtime"
 	"github.com/containerd/typeurl/v2"
@@ -95,80 +94,79 @@ func (w *Watcher) HandleDelete(filter string, handler func(containerd.Container,
 }
 
 // Listen events
-func (w *Watcher) Listen(ctxw context.Context) {
+func (w *Watcher) Listen(ctxw context.Context) error {
 	ctx := context.Background()
 	ch, errs := w.Container.Subscribe(ctx, "namespace==k8s.io")
 	for {
 		select {
 		case <-ctxw.Done():
 			// Exit the loop
-			return
+			return nil
 		case err := <-errs:
 			log.Error(err)
+			return err
 		case c := <-ch:
-			go func(c *events.Envelope) {
-				v, err := typeurl.UnmarshalAny(c.Event)
+			v, err := typeurl.UnmarshalAny(c.Event)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			switch c.Topic {
+			case runtime.TaskStartEventTopic:
+				start, ok := v.(*_events.TaskStart)
+				if !ok {
+					log.Error(fmt.Errorf("can't cast to TaskStart : %s", start))
+					return err
+				}
+				ctxCont := context.Background()
+				contc, err := w.Container.LoadContainer(ctxCont, start.ContainerID)
 				if err != nil {
 					log.Error(err)
-					return
+					return err
 				}
-				switch c.Topic {
-				case runtime.TaskStartEventTopic:
-					start, ok := v.(*_events.TaskStart)
-					if !ok {
-						log.Error(fmt.Errorf("can't cast to TaskStart : %s", start))
-						return
-					}
-					ctxCont := context.Background()
-					contc, err := w.Container.LoadContainer(ctxCont, start.ContainerID)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					ca := NewContainerAdaptor(contc)
-					for _, h := range w.startHandlers {
-						if h.filter.Match(ca) {
-							go h.handler(contc, start)
-						}
-					}
-				case runtime.TaskExitEventTopic:
-					exit, ok := v.(*_events.TaskExit)
-					if !ok {
-						log.Error(fmt.Errorf("can't cast to TaskExit : %s", exit))
-						return
-					}
-					ctxCont := context.Background()
-					contc, err := w.Container.LoadContainer(ctxCont, exit.ContainerID)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					ca := NewContainerAdaptor(contc)
-					for _, h := range w.exitHandlers {
-						if h.filter.Match(ca) {
-							go h.handler(contc, exit)
-						}
-					}
-				case runtime.TaskDeleteEventTopic:
-					delete, ok := v.(*_events.TaskDelete)
-					if !ok {
-						log.Error(fmt.Errorf("can't cast to TaskDelete: %s", delete))
-						return
-					}
-					ctxCont := context.Background()
-					contc, err := w.Container.LoadContainer(ctxCont, delete.ContainerID)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					ca := NewContainerAdaptor(contc)
-					for _, h := range w.deleteHandlers {
-						if h.filter.Match(ca) {
-							go h.handler(contc, delete)
-						}
+				ca := NewContainerAdaptor(contc)
+				for _, h := range w.startHandlers {
+					if h.filter.Match(ca) {
+						go h.handler(contc, start)
 					}
 				}
-			}(c)
+			case runtime.TaskExitEventTopic:
+				exit, ok := v.(*_events.TaskExit)
+				if !ok {
+					log.Error(fmt.Errorf("can't cast to TaskExit : %s", exit))
+					return err
+				}
+				ctxCont := context.Background()
+				contc, err := w.Container.LoadContainer(ctxCont, exit.ContainerID)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				ca := NewContainerAdaptor(contc)
+				for _, h := range w.exitHandlers {
+					if h.filter.Match(ca) {
+						go h.handler(contc, exit)
+					}
+				}
+			case runtime.TaskDeleteEventTopic:
+				delete, ok := v.(*_events.TaskDelete)
+				if !ok {
+					log.Error(fmt.Errorf("can't cast to TaskDelete: %s", delete))
+					return err
+				}
+				ctxCont := context.Background()
+				contc, err := w.Container.LoadContainer(ctxCont, delete.ContainerID)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				ca := NewContainerAdaptor(contc)
+				for _, h := range w.deleteHandlers {
+					if h.filter.Match(ca) {
+						go h.handler(contc, delete)
+					}
+				}
+			}
 		}
 	}
 }
